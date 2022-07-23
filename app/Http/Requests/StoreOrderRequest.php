@@ -27,9 +27,7 @@ class StoreOrderRequest extends FormRequest
             'customer_name' => ['required'],
             'order_date' => ['required', 'date'],
             'order_time' => ['required'],
-            'total' => ['required'],
-            'cash' => ['required'],
-            'change' => ['required']
+            'cash' => ['required']
         ];
     }
 }

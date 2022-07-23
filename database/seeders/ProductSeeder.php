@@ -15,7 +15,8 @@ class ProductSeeder extends Seeder
     public function run()
     {
         Product::create([
-            'name' => 'Aqua'
+            'name' => 'Aqua',
+            'stock' => 100
         ]);
     }
 }

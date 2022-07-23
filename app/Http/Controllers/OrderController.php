@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,7 +18,7 @@ class OrderController extends Controller
      */
     public function index()
     {
-        $orders = Order::orderBy('order_date', 'DESC')->get();
+        $orders = Order::with('product')->orderBy('order_date', 'DESC')->get();
         $response = [
             'message' => 'List order yang diurutkan berdasarkan tanggal order.',
             'data' => $orders
@@ -35,21 +36,51 @@ class OrderController extends Controller
     public function store(StoreOrderRequest $request)
     {
         $recent_order = DB::transaction(function () use ($request) {
-            $order = Order::create($request->validated());
+            foreach($request->product_id as $product_id){
+                $product_check = Product::where('id', $product_id)->count();
+                if($product_check <= 0){
+                    return response()->json("Data produk tidak ditemukan", 404);
+                }
+            }
+            
+            $product_id = $request->product_id;
+            $unit_price = $request->unit_price;
+            $qty = $request->qty;
 
-            $order->product()->attach([
-                'qty' => $request->qty,
-                'unit_price' => $request->unit_price,
-                'subtotal' => $request->subtotal
-            ]);
+            $order = [
+                "customer_name" => $request->customer_name,
+                "order_date" => $request->order_date,
+                "order_time" => $request->order_time,
+                "total" => 0,
+                "cash" => $request->cash,
+                "change" => 0
+            ];            
+            
+            $order = Order::create($order);
 
-            return $order;
+            $total = 0;
+            for($i = 0; $i < count($product_id); $i++){
+                $subtotal = (int)$qty[$i] * (int)$unit_price[$i];
+                $total = $total + $subtotal;
+
+                $order->product()->attach($product_id[$i],[
+                    'qty' => $qty[$i],
+                    'unit_price' => $unit_price[$i],
+                    'subtotal' => $subtotal
+                ]);
+                Product::find($product_id[$i])->decrement('stock', $qty[$i]);
+            }
+            
+            $order->total = $total;
+            $order->change = $request->cash - $total;
+            $order->save();
+
+            return $order->id;
         });
-
 
         $response = [
             'message' => 'Order berhasil disimpan.',
-            'data' => $recent_order
+            'data' => Order::with('product')->find($recent_order)
         ];
 
         return response()->json($response, Response::HTTP_OK);
